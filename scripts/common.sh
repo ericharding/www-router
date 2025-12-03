@@ -132,8 +132,8 @@ function systemctl_user() {
     local project_slug="$1"
     shift # Remove first argument, rest are systemctl args
     local user_id=$(get_user_id "$project_slug")
-    
-    sudo -u "$project_slug" XDG_RUNTIME_DIR="/run/user/$user_id" \
+
+    sudo -H -u "$project_slug" XDG_RUNTIME_DIR="/run/user/$user_id" \
         systemctl --user "$@"
 }
 
@@ -141,26 +141,26 @@ function systemctl_user() {
 function podman_user() {
     local project_slug="$1"
     shift # Remove first argument, rest are podman args
-    
-    sudo -u "$project_slug" podman "$@"
+
+    sudo -H -u "$project_slug" podman "$@"
 }
 
 # Execute git command as project user in app directory
 function git_user() {
     local project_slug="$1"
     shift # Remove first argument, rest are git args
-    
-    sudo -u "$project_slug" git -C "/home/$project_slug/app" "$@"
+
+    sudo -H -u "$project_slug" git -C "/home/$project_slug/app" "$@"
 }
 
 # Show service status
 function show_service_status() {
     local project_slug="$1"
     local user_id=$(get_user_id "$project_slug")
-    
+
     log_info "Checking service status..."
     sleep 1
-    sudo -u "$project_slug" XDG_RUNTIME_DIR="/run/user/$user_id" \
+    sudo -H -u "$project_slug" XDG_RUNTIME_DIR="/run/user/$user_id" \
         systemctl --user status "$project_slug-container.service" --no-pager || true
 }
 
@@ -168,9 +168,9 @@ function show_service_status() {
 function restart_service() {
     local project_slug="$1"
     local user_id=$(get_user_id "$project_slug")
-    
+
     log_info "Restarting service..."
-    sudo -u "$project_slug" XDG_RUNTIME_DIR="/run/user/$user_id" \
+    sudo -H -u "$project_slug" XDG_RUNTIME_DIR="/run/user/$user_id" \
         systemctl --user restart "$project_slug-container.service"
 }
 
@@ -178,9 +178,9 @@ function restart_service() {
 function stop_service() {
     local project_slug="$1"
     local user_id=$(get_user_id "$project_slug")
-    
+
     log_info "Stopping service..."
-    sudo -u "$project_slug" XDG_RUNTIME_DIR="/run/user/$user_id" \
+    sudo -H -u "$project_slug" XDG_RUNTIME_DIR="/run/user/$user_id" \
         systemctl --user stop "$project_slug-container.service"
 }
 
