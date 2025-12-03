@@ -5,25 +5,12 @@ set -euo pipefail
 # Usage: ./restart.sh <project_slug>
 # Example: ./restart.sh proj1
 
-# Colors for output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-NC='\033[0m' # No Color
-
-function log_info() {
-    echo -e "${GREEN}[INFO]${NC} $1"
-}
-
-function log_error() {
-    echo -e "${RED}[ERROR]${NC} $1"
-}
+# Source common functions
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/common.sh"
 
 # Check if script is run with sudo
-if [ "$EUID" -ne 0 ]; then
-    log_error "Please run this script with sudo"
-    exit 1
-fi
+require_sudo
 
 # Parse arguments
 if [ $# -ne 1 ]; then
@@ -35,22 +22,12 @@ fi
 PROJECT_SLUG="$1"
 
 # Check if user exists
-if ! id "$PROJECT_SLUG" &>/dev/null; then
-    log_error "User $PROJECT_SLUG does not exist"
-    exit 1
-fi
-
-# Get user ID
-USER_ID=$(id -u "$PROJECT_SLUG")
+check_user_exists "$PROJECT_SLUG"
 
 log_info "Restarting $PROJECT_SLUG container..."
-sudo -u "$PROJECT_SLUG" XDG_RUNTIME_DIR="/run/user/$USER_ID" \
-    systemctl --user restart "$PROJECT_SLUG-container.service"
+restart_service "$PROJECT_SLUG"
 
 # Check status
-log_info "Checking service status..."
-sleep 1
-sudo -u "$PROJECT_SLUG" XDG_RUNTIME_DIR="/run/user/$USER_ID" \
-    systemctl --user status "$PROJECT_SLUG-container.service" --no-pager || true
+show_service_status "$PROJECT_SLUG"
 
 log_info "Restart complete!"
