@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # Script to set up a new project with user, container, and systemd service
-# Usage: ./new.sh <project_slug> <git_uri> <branch>
+# Usage: ./new.sh <project_slug> <git_uri> [branch]
 # Example: ./new.sh proj1 git@github.com:user/repo.git prod
 
 # Source common functions
@@ -13,15 +13,16 @@ source "$SCRIPT_DIR/common.sh"
 require_sudo
 
 # Parse arguments
-if [ $# -ne 3 ]; then
-    log_error "Usage: $0 <project_slug> <git_uri> <branch>"
+if [ $# -lt 2 ] || [ $# -gt 3 ]; then
+    log_error "Usage: $0 <project_slug> <git_uri> [branch]"
     log_error "Example: $0 proj1 git@github.com:user/repo.git prod"
+    log_error "Default branch: master"
     exit 1
 fi
 
 PROJECT_SLUG="$1"
 GIT_URI="$2"
-BRANCH="$3"
+BRANCH="${3:-master}"
 
 # Extract git host from URI
 GIT_HOST=$(echo "$GIT_URI" | sed -n 's/.*@\([^:]*\):.*/\1/p')
