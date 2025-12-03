@@ -73,12 +73,18 @@ log_info "  User ID: $USER_ID"
 log_info "  Port: $PORT"
 log_info "  IP: $IP"
 
-# Step 2: Create directories
+# Step 2: Create directories and .env file
 log_info "Creating directories..."
 mkdir -p "/home/$PROJECT_SLUG/container-data"
 mkdir -p "/home/$PROJECT_SLUG/.ssh"
 chown -R "$PROJECT_SLUG:$PROJECT_SLUG" "/home/$PROJECT_SLUG"
 chmod 700 "/home/$PROJECT_SLUG/.ssh"
+
+# Create empty .env file for project-specific environment variables
+log_info "Creating .env file..."
+touch "/home/$PROJECT_SLUG/.env"
+chown "$PROJECT_SLUG:$PROJECT_SLUG" "/home/$PROJECT_SLUG/.env"
+chmod 600 "/home/$PROJECT_SLUG/.env"
 
 # Step 3: Generate SSH key
 log_info "Generating SSH key..."
@@ -150,6 +156,7 @@ ExecStart=/usr/bin/podman run \\
   --network router-net \\
   --ip $IP \\
   --publish 127.0.0.1:$PORT:80 \\
+  --env-file /home/$PROJECT_SLUG/.env \\
   --volume /home/$PROJECT_SLUG/container-data:/data:Z \\
   --security-opt no-new-privileges=true \\
   --cap-drop ALL \\
