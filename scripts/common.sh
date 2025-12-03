@@ -142,7 +142,7 @@ function podman_user() {
     local project_slug="$1"
     shift # Remove first argument, rest are podman args
 
-    sudo -H -u "$project_slug" podman "$@"
+    sudo -H -u "$project_slug" sh -c "cd /home/$project_slug && podman $*"
 }
 
 # Execute git command as project user in app directory
