@@ -5,29 +5,12 @@ set -euo pipefail
 # Usage: ./new.sh <project_slug> <git_uri> <branch>
 # Example: ./new.sh proj1 git@github.com:user/repo.git prod
 
-# Colors for output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-NC='\033[0m' # No Color
-
-function log_info() {
-    echo -e "${GREEN}[INFO]${NC} $1"
-}
-
-function log_warn() {
-    echo -e "${YELLOW}[WARN]${NC} $1"
-}
-
-function log_error() {
-    echo -e "${RED}[ERROR]${NC} $1"
-}
+# Source common functions
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/common.sh"
 
 # Check if script is run with sudo
-if [ "$EUID" -ne 0 ]; then
-    log_error "Please run this script with sudo"
-    exit 1
-fi
+require_sudo
 
 # Parse arguments
 if [ $# -ne 3 ]; then
@@ -53,10 +36,7 @@ log_info "  Branch: $BRANCH"
 log_info "  Git Host: $GIT_HOST"
 
 # Check if user already exists
-if id "$PROJECT_SLUG" &>/dev/null; then
-    log_error "User $PROJECT_SLUG already exists"
-    exit 1
-fi
+check_user_not_exists "$PROJECT_SLUG"
 
 # Step 1: Create project user
 log_info "Creating user $PROJECT_SLUG..."
@@ -113,14 +93,11 @@ log_info "Cloning repository..."
 sudo -u "$PROJECT_SLUG" git clone --branch "$BRANCH" "$GIT_URI" "/home/$PROJECT_SLUG/app"
 
 # Verify Dockerfile exists
-if [ ! -f "/home/$PROJECT_SLUG/app/Dockerfile" ]; then
-    log_error "Dockerfile not found in repository root"
-    exit 1
-fi
+check_dockerfile "$PROJECT_SLUG"
 
 # Step 7: Build container image
 log_info "Building container image..."
-sudo -u "$PROJECT_SLUG" podman build -t "$PROJECT_SLUG-image" "/home/$PROJECT_SLUG/app/"
+podman_user "$PROJECT_SLUG" build -t "$PROJECT_SLUG-image" "/home/$PROJECT_SLUG/app/"
 
 # Step 8: Create systemd service
 log_info "Creating systemd service..."
@@ -177,13 +154,11 @@ chown "$PROJECT_SLUG:$PROJECT_SLUG" "/home/$PROJECT_SLUG/.config/systemd/user/$P
 
 # Step 9: Enable and start service
 log_info "Enabling and starting service..."
-sudo -u "$PROJECT_SLUG" XDG_RUNTIME_DIR="/run/user/$USER_ID" systemctl --user daemon-reload
-sudo -u "$PROJECT_SLUG" XDG_RUNTIME_DIR="/run/user/$USER_ID" systemctl --user enable --now "$PROJECT_SLUG-container.service"
+systemctl_user "$PROJECT_SLUG" daemon-reload
+systemctl_user "$PROJECT_SLUG" enable --now "$PROJECT_SLUG-container.service"
 
 # Step 10: Check status
-log_info "Checking service status..."
-sleep 2
-sudo -u "$PROJECT_SLUG" XDG_RUNTIME_DIR="/run/user/$USER_ID" systemctl --user status "$PROJECT_SLUG-container.service" --no-pager || true
+show_service_status "$PROJECT_SLUG"
 
 echo ""
 log_info "=========================================="
