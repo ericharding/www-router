@@ -23,6 +23,41 @@ function log_error() {
     echo -e "${RED}[ERROR]${NC} $1"
 }
 
+# Function to add project to config file
+function add_to_config() {
+    local config_file="/etc/router-projects.json"
+    local slug="$1"
+    local git_uri="$2"
+    local branch="$3"
+
+    # Check if jq is installed
+    if ! command -v jq &> /dev/null; then
+        log_warn "jq not installed - skipping config file update"
+        log_warn "Install jq and manually add to $config_file"
+        return
+    fi
+
+    # Create config file if it doesn't exist
+    if [ ! -f "$config_file" ]; then
+        echo '[]' > "$config_file"
+    fi
+
+    # Check if project already exists in config
+    if jq -e --arg slug "$slug" '.[] | select(.slug == $slug)' "$config_file" &>/dev/null; then
+        log_warn "Project $slug already exists in $config_file - skipping"
+        return
+    fi
+
+    # Add project to config
+    local temp_file=$(mktemp)
+    jq --arg slug "$slug" --arg git "$git_uri" --arg branch "$branch" \
+        '. += [{"slug": $slug, "git": $git, "branch": $branch}]' \
+        "$config_file" > "$temp_file"
+    mv "$temp_file" "$config_file"
+
+    log_info "Added project to $config_file"
+}
+
 # Check if script is run with sudo
 if [ "$EUID" -ne 0 ]; then
     log_error "Please run this script with sudo"
@@ -185,6 +220,10 @@ log_info "Checking service status..."
 sleep 2
 sudo -u "$PROJECT_SLUG" XDG_RUNTIME_DIR="/run/user/$USER_ID" systemctl --user status "$PROJECT_SLUG-container.service" --no-pager || true
 
+# Step 11: Add to config file
+log_info "Adding project to config file..."
+add_to_config "$PROJECT_SLUG" "$GIT_URI" "$BRANCH"
+
 echo ""
 log_info "=========================================="
 log_info "Setup complete for $PROJECT_SLUG!"
@@ -192,25 +231,8 @@ log_info "=========================================="
 log_info "Port: $PORT"
 log_info "IP: $IP"
 log_info ""
-log_info "Add this to your Caddyfile:"
-echo ""
-echo "$PROJECT_SLUG.yourdomain.com {"
-echo "    reverse_proxy 127.0.0.1:$PORT"
-echo "    "
-echo "    header {"
-echo "        Strict-Transport-Security \"max-age=31536000; includeSubDomains; preload\""
-echo "        X-Frame-Options \"SAMEORIGIN\""
-echo "        X-Content-Type-Options \"nosniff\""
-echo "        X-XSS-Protection \"1; mode=block\""
-echo "        Referrer-Policy \"strict-origin-when-cross-origin\""
-echo "    }"
-echo "    "
-echo "    log {"
-echo "        output file /var/log/caddy/$PROJECT_SLUG.log"
-echo "        format json"
-echo "    }"
-echo "}"
-echo ""
-log_info "Then reload Caddy: sudo systemctl reload caddy"
+log_info "Next steps:"
+echo "  1. Generate updated Caddyfile: sudo ./scripts/generate-caddyfile.sh yourdomain.com admin@yourdomain.com > /etc/caddy/Caddyfile"
+echo "  2. Reload Caddy: sudo systemctl reload caddy"
 log_info ""
 log_info "View logs with: sudo -u $PROJECT_SLUG XDG_RUNTIME_DIR=/run/user/$USER_ID journalctl --user -u $PROJECT_SLUG-container.service -f"

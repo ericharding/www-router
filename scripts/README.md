@@ -2,6 +2,83 @@
 
 Management scripts for the Podman + Caddy router setup.
 
+## Configuration File
+
+All projects are tracked in `/etc/router-projects.json` with this format:
+
+```json
+[
+  {
+    "slug": "proj1",
+    "git": "git@github.com:user/repo.git",
+    "branch": "main"
+  },
+  {
+    "slug": "myapp",
+    "git": "git@github.com:user/myapp.git",
+    "branch": "prod"
+  }
+]
+```
+
+This config file:
+- Is automatically updated when you add new projects
+- Can be copied to recreate your entire setup on another machine
+- Is used to generate the Caddyfile
+
+**Note:** Requires `jq` to be installed: `sudo apt install jq`
+
+---
+
+## bootstrap.sh
+
+Recreates all projects from `router-projects.json` (useful for new machines).
+
+```bash
+sudo ./scripts/bootstrap.sh
+```
+
+**What it does:**
+1. Reads all projects from `/etc/router-projects.json`
+2. For each project that doesn't exist, runs `new.sh`
+3. Reports success/skip/fail counts
+
+**Use this when:**
+- Setting up a new server with an existing config
+- Migrating your setup to another machine
+- Recovering from a system reinstall
+
+---
+
+## generate-caddyfile.sh
+
+Generates a complete Caddyfile from `router-projects.json`.
+
+```bash
+sudo ./scripts/generate-caddyfile.sh [domain] [email]
+```
+
+**Example:**
+```bash
+# Generate and save to file
+sudo ./scripts/generate-caddyfile.sh yourdomain.com admin@yourdomain.com > /etc/caddy/Caddyfile
+
+# Or just preview
+sudo ./scripts/generate-caddyfile.sh yourdomain.com admin@yourdomain.com
+```
+
+**What it does:**
+1. Reads projects from `/etc/router-projects.json`
+2. Generates Caddyfile with reverse proxy config for each project
+3. Includes security headers and logging
+4. Skips projects where the user doesn't exist
+
+**Parameters:**
+- `domain` - Your domain (default: yourdomain.com)
+- `email` - Email for Let's Encrypt (default: your-email@example.com)
+
+---
+
 ## new.sh
 
 Creates a new project with user, container, and systemd service.
@@ -21,7 +98,8 @@ sudo ./scripts/new.sh proj1 git@github.com:user/repo.git prod
 3. Clones the git repository
 4. Builds the container image
 5. Creates and starts systemd service
-6. Outputs Caddyfile configuration to add
+6. Adds project to `/etc/router-projects.json`
+7. Shows next steps to generate Caddyfile
 
 **Note:** Port and IP are auto-calculated from the user ID.
 
@@ -104,11 +182,28 @@ sudo ./scripts/restart.sh proj1
 
 ### Initial Setup
 ```bash
+# Install jq (required for config management)
+sudo apt install jq
+
 # Create new project
 sudo ./scripts/new.sh myapp git@github.com:me/myapp.git main
 
-# Add the Caddyfile configuration (output by script)
-sudo nano /etc/caddy/Caddyfile
+# Generate and deploy Caddyfile
+sudo ./scripts/generate-caddyfile.sh yourdomain.com admin@yourdomain.com > /etc/caddy/Caddyfile
+sudo systemctl reload caddy
+```
+
+### Setting Up on a New Machine
+```bash
+# Copy your config file to the new machine
+scp /etc/router-projects.json newserver:/tmp/
+
+# On the new server:
+sudo mv /tmp/router-projects.json /etc/
+sudo ./scripts/bootstrap.sh
+
+# Generate Caddyfile
+sudo ./scripts/generate-caddyfile.sh yourdomain.com admin@yourdomain.com > /etc/caddy/Caddyfile
 sudo systemctl reload caddy
 ```
 
