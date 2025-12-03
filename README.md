@@ -42,27 +42,16 @@ sudo dnf install -y caddy
 # sudo apt install caddy
 ```
 
-### 2. Enable Lingering for Rootless Containers
-
-This allows user containers to start at boot without the user being logged in:
-
-```bash
-# For each project user you'll create
-sudo loginctl enable-linger proj1
-sudo loginctl enable-linger proj2
-sudo loginctl enable-linger proj3
-```
-
-### 3. Create Podman Network
+### 2. Create Podman Network
 
 Create a shared network for all projects (do this as your main user):
 
 ```bash
-# Create network
-podman network create --subnet 10.89.0.0/24 caddy-net
+# Create network (as root so all users can use it)
+sudo podman network create --subnet 10.67.0.0/24 router-net
 
 # Verify
-podman network inspect caddy-net
+podman network inspect router-net
 ```
 
 ## Per-Project Setup
@@ -77,35 +66,45 @@ sudo useradd -m -s /sbin/nologin proj1
 sudo loginctl enable-linger proj1
 
 # Set up directories
-sudo mkdir -p /home/proj1/{container-data,Dockerfile}
+sudo mkdir -p /home/proj1/container-data
 sudo chown -R proj1:proj1 /home/proj1
 ```
 
-### 2. Create Dockerfile
+### 2. Clone git repo
 
 ```bash
-# Example Dockerfile for project1
-sudo tee /home/proj1/Dockerfile/Dockerfile << 'EOF'
-FROM nginx:alpine
+# Create .ssh directory
+sudo mkdir -p /home/proj1/.ssh
+sudo chown proj1:proj1 /home/proj1/.ssh
+sudo chmod 700 /home/proj1/.ssh
 
-# Copy your application files
-COPY ./app /usr/share/nginx/html
+# Generate SSH key for the project user
+sudo -u proj1 ssh-keygen -t ed25519 -f /home/proj1/.ssh/id_ed25519 -N "" -C "proj1-deploy-key"
 
-# Nginx already exposes port 80
-EXPOSE 80
+# Display the public key (copy this to add as deploy key in your git repo)
+sudo cat /home/proj1/.ssh/id_ed25519.pub
 
-CMD ["nginx", "-g", "daemon off;"]
-EOF
+# After adding the public key as a deploy key on GitHub/GitLab:
+# Add GitHub/GitLab to known_hosts to avoid SSH prompt
+sudo -u proj1 ssh-keyscan github.com >> /home/proj1/.ssh/known_hosts 2>/dev/null
+# Or for GitLab: sudo -u proj1 ssh-keyscan gitlab.com >> /home/proj1/.ssh/known_hosts 2>/dev/null
 
-# Set ownership
-sudo chown -R proj1:proj1 /home/proj1/Dockerfile
+# Clone the repository as the project user
+sudo -u proj1 git clone git@github.com:username/repo.git /home/proj1/app
+
+# Verify
+sudo ls -la /home/proj1/app
 ```
+
+**Note:** Before cloning, add the public key (displayed above) as a deploy key in your git repository settings:
+- **GitHub:** Settings → Deploy keys → Add deploy key
+- **GitLab:** Settings → Repository → Deploy keys → Add key
 
 ### 3. Build Container Image
 
 ```bash
-# Build as the project user
-sudo -u proj1 podman build -t proj1-image /home/proj1/Dockerfile/
+# Build as the project user (assumes Dockerfile is in the root of the cloned repo)
+sudo -u proj1 podman build -t proj1-image /home/proj1/app/
 
 # Verify
 sudo -u proj1 podman images
@@ -145,8 +144,8 @@ ExecStartPre=-/usr/bin/podman kill proj1-container
 ExecStartPre=-/usr/bin/podman rm proj1-container
 ExecStart=/usr/bin/podman run \
   --name proj1-container \
-  --network caddy-net \
-  --ip 10.89.0.10 \
+  --network router-net \
+  --ip 10.67.0.10 \
   --publish 127.0.0.1:8001:80 \
   --volume /home/proj1/container-data:/data:Z \
   --security-opt no-new-privileges=true \
@@ -361,12 +360,13 @@ Quick checklist:
 
 1. Create user: `sudo useradd -m -s /sbin/nologin proj3`
 2. Enable lingering: `sudo loginctl enable-linger proj3`
-3. Create directories: `sudo mkdir -p /home/proj3/{container-data,Dockerfile}`
-4. Add Dockerfile and build image
-5. Create systemd service (use unique port and IP)
-6. Enable service
-7. Add domain to Caddyfile
-8. Reload Caddy: `sudo systemctl reload caddy`
+3. Create directories: `sudo mkdir -p /home/proj3/container-data`
+4. Clone git repo with Dockerfile
+5. Build container image
+6. Create systemd service (use unique port and IP)
+7. Enable service
+8. Add domain to Caddyfile
+9. Reload Caddy: `sudo systemctl reload caddy`
 
 ## Troubleshooting
 
@@ -404,54 +404,3 @@ sudo journalctl -u caddy -n 50
 curl -v https://project1.yourdomain.com
 ```
 
-## Alternative: Using podman-compose (Not Recommended)
-
-If you still prefer podman-compose, here's a minimal example:
-
-```yaml
-# docker-compose.yml
-version: '3'
-
-services:
-  project1:
-    build: ./project1
-    container_name: proj1-container
-    networks:
-      caddy-net:
-        ipv4_address: 10.89.0.10
-    ports:
-      - "127.0.0.1:8001:80"
-    restart: unless-stopped
-    security_opt:
-      - no-new-privileges:true
-    cap_drop:
-      - ALL
-    cap_add:
-      - NET_BIND_SERVICE
-
-networks:
-  caddy-net:
-    external: true
-```
-
-Run with: `podman-compose up -d`
-
-**However**, this doesn't give you:
-- Per-project user isolation
-- systemd integration
-- Easy resource limits
-- Automatic restarts on failure
-- Boot-time startup
-
-## Summary
-
-This setup provides:
-
-✅ **Security**: Each project runs as a different unprivileged user  
-✅ **Isolation**: Containers have minimal capabilities and read-only filesystems  
-✅ **Automatic HTTPS**: Caddy handles certificates automatically  
-✅ **Reliability**: systemd restarts failed containers  
-✅ **Scalability**: Easy to add new projects  
-✅ **Monitoring**: Integrated with journald and Caddy logging  
-
-Your projects are now production-ready with enterprise-grade security!
