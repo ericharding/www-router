@@ -48,6 +48,8 @@ fi
 log_info "Stopping systemd service..."
 if systemctl_user "$PROJECT_SLUG" is-active "$PROJECT_SLUG-container.service" &>/dev/null; then
     stop_service "$PROJECT_SLUG"
+    log_info "Waiting for systemd to fully shut down..."
+    sleep 2
 else
     log_info "Service is not running, skipping stop."
 fi
