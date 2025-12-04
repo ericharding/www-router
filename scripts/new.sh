@@ -64,6 +64,9 @@ touch "/home/$PROJECT_SLUG/.env"
 chown "$PROJECT_SLUG:$PROJECT_SLUG" "/home/$PROJECT_SLUG/.env"
 chmod 600 "/home/$PROJECT_SLUG/.env"
 
+# Make systemd work for user
+echo export XDG_RUNTIME_DIR=/run/user/$USER_ID >> /home/$PROJECT_SLUG/.bashrc
+
 # Step 3: Generate SSH key
 log_info "Generating SSH key..."
 sudo -u "$PROJECT_SLUG" ssh-keygen -t ed25519 -f "/home/$PROJECT_SLUG/.ssh/id_ed25519" -N "" -C "$PROJECT_SLUG-deploy-key"
