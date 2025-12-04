@@ -11,10 +11,10 @@ This guide sets up a secure multi-project server using:
 ## Architecture
 
 ```
-Internet → Caddy (port 80/443) → Podman Network → Project Containers
-                                                   ├─ project1 (user: proj1)
-                                                   ├─ project2 (user: proj2)
-                                                   └─ project3 (user: proj3)
+Internet → Caddy (port 80/443) → Host Loopback Ports → Project Containers
+                                  ├─ 127.0.0.1:8001  ├─ project1 (user: proj1)
+                                  ├─ 127.0.0.1:8002  ├─ project2 (user: proj2)
+                                  └─ 127.0.0.1:8003  └─ project3 (user: proj3)
 ```
 
 ## Initial Setup
@@ -42,17 +42,9 @@ sudo dnf install -y caddy
 # sudo apt install caddy
 ```
 
-### 2. Create Podman Network
+### 2. Network Configuration
 
-Create a shared network for all projects (do this as your main user):
-
-```bash
-# Create network (as root so all users can use it)
-sudo podman network create --subnet 10.67.0.0/24 router-net
-
-# Verify
-podman network inspect router-net
-```
+Containers now bind directly to host loopback ports, eliminating the need for a shared Podman network. Each container gets a unique port based on its user ID (8000 + user_id).
 
 ## Per-Project Setup
 
@@ -144,8 +136,6 @@ ExecStartPre=-/usr/bin/podman kill proj1-container
 ExecStartPre=-/usr/bin/podman rm proj1-container
 ExecStart=/usr/bin/podman run \
   --name proj1-container \
-  --network router-net \
-  --ip 10.67.0.10 \
   --publish 127.0.0.1:8001:80 \
   --volume /home/proj1/container-data:/data:Z \
   --security-opt no-new-privileges=true \
@@ -363,7 +353,7 @@ Quick checklist:
 3. Create directories: `sudo mkdir -p /home/proj3/container-data`
 4. Clone git repo with Dockerfile
 5. Build container image
-6. Create systemd service (use unique port and IP)
+6. Create systemd service (use unique port)
 7. Enable service
 8. Add domain to Caddyfile
 9. Reload Caddy: `sudo systemctl reload caddy`
@@ -381,14 +371,14 @@ sudo -u proj1 XDG_RUNTIME_DIR=/run/user/$(id -u proj1) \
 sudo -u proj1 podman run -it --rm proj1-image /bin/sh
 ```
 
-### Network issues
+### Port binding issues
 
 ```bash
-# Check network exists
-podman network ls
+# Check if port is in use
+sudo netstat -tlnp | grep :8001
 
-# Verify container is on network
-sudo -u proj1 podman inspect proj1-container | grep -A 10 Networks
+# Check container port bindings
+sudo -u proj1 podman port proj1-container
 ```
 
 ### Caddy issues

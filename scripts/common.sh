@@ -18,7 +18,6 @@
 # **Helper Functions:**
 # - `get_user_id()` - Get user ID for a project
 # - `get_port()` - Calculate port from user ID
-# - `get_ip()` - Calculate IP from user ID
 # - `systemctl_user()` - Execute systemctl as project user
 # - `podman_user()` - Execute podman as project user
 # - `git_user()` - Execute git as project user
@@ -118,13 +117,6 @@ function get_port() {
     local project_slug="$1"
     local user_id=$(get_user_id "$project_slug")
     echo $((8000 + user_id))
-}
-
-# Get IP for a project (calculated from user ID)
-function get_ip() {
-    local project_slug="$1"
-    local user_id=$(get_user_id "$project_slug")
-    echo "10.67.0.$((10 + (user_id % 246)))"
 }
 
 # Execute systemctl command as project user

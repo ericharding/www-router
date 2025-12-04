@@ -44,15 +44,12 @@ log_info "Creating user $PROJECT_SLUG..."
 useradd -m -s /sbin/nologin "$PROJECT_SLUG"
 loginctl enable-linger "$PROJECT_SLUG"
 
-# Get the user ID and calculate port/IP
+# Get the user ID and calculate port
 USER_ID=$(id -u "$PROJECT_SLUG")
 PORT=$((8000 + USER_ID))
-# Map UID to IP range 10.67.0.10-255 (246 available IPs)
-IP="10.67.0.$((10 + (USER_ID % 246)))"
 
 log_info "  User ID: $USER_ID"
 log_info "  Port: $PORT"
-log_info "  IP: $IP"
 
 # Step 2: Create directories and .env file
 log_info "Creating directories..."
@@ -131,8 +128,6 @@ ExecStartPre=-/usr/bin/podman kill $PROJECT_SLUG-container
 ExecStartPre=-/usr/bin/podman rm $PROJECT_SLUG-container
 ExecStart=/usr/bin/podman run \\
   --name $PROJECT_SLUG-container \\
-  --network router-net \\
-  --ip $IP \\
   --publish 127.0.0.1:$PORT:80 \\
   --env-file /home/$PROJECT_SLUG/.env \\
   --volume /home/$PROJECT_SLUG/container-data:/data:Z \\
@@ -166,7 +161,6 @@ log_info "=========================================="
 log_info "Setup complete for $PROJECT_SLUG!"
 log_info "=========================================="
 log_info "Port: $PORT"
-log_info "IP: $IP"
 log_info ""
 log_info "Add this to your Caddyfile:"
 echo ""
