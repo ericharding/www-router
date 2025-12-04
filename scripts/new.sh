@@ -137,9 +137,8 @@ ExecStart=/usr/bin/podman run \\
   --security-opt no-new-privileges=true \\
   --cap-drop ALL \\
   --cap-add NET_BIND_SERVICE \\
-  --read-only \\
+  --cap-add CHOWN \\
   --tmpfs /tmp \\
-  --label io.containers.autoupdate=registry \\
   $PROJECT_SLUG-image
 
 ExecStop=/usr/bin/podman stop -t 10 $PROJECT_SLUG-container
