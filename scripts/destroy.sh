@@ -72,7 +72,23 @@ podman_user "$PROJECT_SLUG" rm -f "$PROJECT_SLUG-container" 2>/dev/null || true
 log_info "Disabling linger for $PROJECT_SLUG..."
 loginctl disable-linger "$PROJECT_SLUG"
 
-# Step 4: Delete the user and home directory
+# Step 4: Kill all remaining processes owned by the user
+log_info "Killing all processes owned by $PROJECT_SLUG..."
+if pgrep -u "$PROJECT_SLUG" >/dev/null 2>&1; then
+    pkill -u "$PROJECT_SLUG" || true
+    log_info "Waiting for processes to terminate..."
+    sleep 2
+    # Force kill if anything remains
+    if pgrep -u "$PROJECT_SLUG" >/dev/null 2>&1; then
+        log_warn "Some processes still running, force killing..."
+        pkill -9 -u "$PROJECT_SLUG" || true
+        sleep 1
+    fi
+else
+    log_info "No processes found for $PROJECT_SLUG"
+fi
+
+# Step 5: Delete the user and home directory
 log_info "Deleting user $PROJECT_SLUG and home directory..."
 userdel -r "$PROJECT_SLUG"
 
