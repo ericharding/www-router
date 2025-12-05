@@ -3,7 +3,9 @@ set -euo pipefail
 
 # Script to set up a new project with user, container, and systemd service
 # Usage: ./new.sh <project_slug> <git_uri> [branch]
-# Example: ./new.sh proj1 git@github.com:user/repo.git prod
+# Examples:
+#   SSH (private repo): ./new.sh proj1 git@github.com:user/repo.git prod
+#   HTTP (public repo): ./new.sh secure https://github.com/ericharding/www-secure.git
 
 # Source common functions
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -15,7 +17,9 @@ require_sudo
 # Parse arguments
 if [ $# -lt 2 ] || [ $# -gt 3 ]; then
     log_error "Usage: $0 <project_slug> <git_uri> [branch]"
-    log_error "Example: $0 proj1 git@github.com:user/repo.git prod"
+    log_error "Examples:"
+    log_error "  SSH (private): $0 proj1 git@github.com:user/repo.git prod"
+    log_error "  HTTP (public): $0 secure https://github.com/ericharding/www-secure.git"
     log_error "Default branch: master"
     exit 1
 fi
@@ -24,8 +28,17 @@ PROJECT_SLUG="$1"
 GIT_URI="$2"
 BRANCH="${3:-master}"
 
-# Extract git host from URI
-GIT_HOST=$(echo "$GIT_URI" | sed -n 's/.*@\([^:]*\):.*/\1/p')
+# Detect if this is an HTTP(S) or SSH git URI
+if [[ "$GIT_URI" =~ ^https?:// ]]; then
+    USE_HTTP=true
+    # Extract git host from HTTP(S) URI
+    GIT_HOST=$(echo "$GIT_URI" | sed -n 's|^https\?://\([^/]*\)/.*|\1|p')
+else
+    USE_HTTP=false
+    # Extract git host from SSH URI
+    GIT_HOST=$(echo "$GIT_URI" | sed -n 's/.*@\([^:]*\):.*/\1/p')
+fi
+
 if [ -z "$GIT_HOST" ]; then
     log_error "Could not extract git host from URI: $GIT_URI"
     exit 1
@@ -35,6 +48,11 @@ log_info "Setting up project: $PROJECT_SLUG"
 log_info "  Git URI: $GIT_URI"
 log_info "  Branch: $BRANCH"
 log_info "  Git Host: $GIT_HOST"
+if [ "$USE_HTTP" = true ]; then
+    log_info "  Auth: Public repository (HTTP)"
+else
+    log_info "  Auth: SSH deploy key"
+fi
 
 # Check if user already exists
 check_user_not_exists "$PROJECT_SLUG"
@@ -67,27 +85,32 @@ chmod 600 "/home/$PROJECT_SLUG/.env"
 # Make systemd work for user
 echo export XDG_RUNTIME_DIR=/run/user/$USER_ID >> /home/$PROJECT_SLUG/.bashrc
 
-# Step 3: Generate SSH key
-log_info "Generating SSH key..."
-sudo -u "$PROJECT_SLUG" ssh-keygen -t ed25519 -f "/home/$PROJECT_SLUG/.ssh/id_ed25519" -N "" -C "$PROJECT_SLUG-deploy-key"
+# Step 3 & 4 & 5: SSH key setup (only for SSH git URIs)
+if [ "$USE_HTTP" = false ]; then
+    # Step 3: Generate SSH key
+    log_info "Generating SSH key..."
+    sudo -u "$PROJECT_SLUG" ssh-keygen -t ed25519 -f "/home/$PROJECT_SLUG/.ssh/id_ed25519" -N "" -C "$PROJECT_SLUG-deploy-key"
 
-# Step 4: Display public key and wait for user
-echo ""
-echo "=========================================="
-echo "DEPLOY KEY - Add this to your git repository:"
-echo "=========================================="
-cat "/home/$PROJECT_SLUG/.ssh/id_ed25519.pub"
-echo "=========================================="
-echo ""
-log_warn "Add the above public key as a deploy key to your repository"
-log_warn "GitHub: Settings � Deploy keys � Add deploy key"
-log_warn "GitLab: Settings � Repository � Deploy keys � Add key"
-echo ""
-read -p "Press ENTER once you have added the deploy key..."
+    # Step 4: Display public key and wait for user
+    echo ""
+    echo "=========================================="
+    echo "DEPLOY KEY - Add this to your git repository:"
+    echo "=========================================="
+    cat "/home/$PROJECT_SLUG/.ssh/id_ed25519.pub"
+    echo "=========================================="
+    echo ""
+    log_warn "Add the above public key as a deploy key to your repository"
+    log_warn "GitHub: Settings � Deploy keys � Add deploy key"
+    log_warn "GitLab: Settings � Repository � Deploy keys � Add key"
+    echo ""
+    read -p "Press ENTER once you have added the deploy key..."
 
-# Step 5: Add git host to known_hosts
-log_info "Adding $GIT_HOST to known_hosts..."
-sudo -u "$PROJECT_SLUG" ssh-keyscan "$GIT_HOST" >> "/home/$PROJECT_SLUG/.ssh/known_hosts" 2>/dev/null
+    # Step 5: Add git host to known_hosts
+    log_info "Adding $GIT_HOST to known_hosts..."
+    sudo -u "$PROJECT_SLUG" ssh-keyscan "$GIT_HOST" >> "/home/$PROJECT_SLUG/.ssh/known_hosts" 2>/dev/null
+else
+    log_info "Skipping SSH key setup for public HTTP repository"
+fi
 
 # Step 6: Clone repository
 log_info "Cloning repository..."
