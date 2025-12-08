@@ -26,7 +26,7 @@ fi
 
 PROJECT_SLUG="$1"
 GIT_URI="$2"
-ENV_FILE="$3"
+ENV_FILE="${3:-}"
 
 # Detect if this is an HTTP(S) or SSH git URI
 if [[ "$GIT_URI" =~ ^https?:// ]]; then
