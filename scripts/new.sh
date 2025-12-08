@@ -14,15 +14,15 @@ require_sudo
 
 # Parse arguments
 if [ $# -lt 2 ] || [ $# -gt 3 ]; then
-    log_error "Usage: $0 <project_slug> <git_uri> [branch]"
-    log_error "Example: $0 proj1 git@github.com:user/repo.git prod"
-    log_error "Default branch: master"
+    log_error "Usage: $0 <project_slug> <git_uri> [env_file]"
+    log_error "Example: $0 proj1 git@github.com:user/repo.git /path/to/custom.env"
+    log_error "If env_file not provided, will use repo's .env.example or create empty .env"
     exit 1
 fi
 
 PROJECT_SLUG="$1"
 GIT_URI="$2"
-BRANCH="${3:-master}"
+ENV_FILE="$3"
 
 # Extract git host from URI
 GIT_HOST=$(echo "$GIT_URI" | sed -n 's/.*@\([^:]*\):.*/\1/p')
@@ -33,7 +33,6 @@ fi
 
 log_info "Setting up project: $PROJECT_SLUG"
 log_info "  Git URI: $GIT_URI"
-log_info "  Branch: $BRANCH"
 log_info "  Git Host: $GIT_HOST"
 
 # Check if user already exists
@@ -58,11 +57,7 @@ mkdir -p "/home/$PROJECT_SLUG/.ssh"
 chown -R "$PROJECT_SLUG:$PROJECT_SLUG" "/home/$PROJECT_SLUG"
 chmod 700 "/home/$PROJECT_SLUG/.ssh"
 
-# Create empty .env file for project-specific environment variables
-log_info "Creating .env file..."
-touch "/home/$PROJECT_SLUG/.env"
-chown "$PROJECT_SLUG:$PROJECT_SLUG" "/home/$PROJECT_SLUG/.env"
-chmod 600 "/home/$PROJECT_SLUG/.env"
+# .env file will be created after cloning repository
 
 # Make systemd work for user
 echo export XDG_RUNTIME_DIR=/run/user/$USER_ID >> /home/$PROJECT_SLUG/.bashrc
@@ -91,10 +86,43 @@ sudo -u "$PROJECT_SLUG" ssh-keyscan "$GIT_HOST" >> "/home/$PROJECT_SLUG/.ssh/kno
 
 # Step 6: Clone repository
 log_info "Cloning repository..."
-sudo -u "$PROJECT_SLUG" git clone --branch "$BRANCH" "$GIT_URI" "/home/$PROJECT_SLUG/app"
+sudo -u "$PROJECT_SLUG" git clone "$GIT_URI" "/home/$PROJECT_SLUG/app"
 
 # Verify Dockerfile exists
 check_dockerfile "$PROJECT_SLUG"
+
+# Step 6.5: Create .env file
+log_info "Creating .env file..."
+if [ -n "$ENV_FILE" ]; then
+    # Use provided environment file
+    log_info "Using provided environment file: $ENV_FILE"
+    if [ ! -f "$ENV_FILE" ]; then
+        log_error "Environment file not found: $ENV_FILE"
+        exit 1
+    fi
+    cp "$ENV_FILE" "/home/$PROJECT_SLUG/.env"
+elif [ -f "/home/$PROJECT_SLUG/app/.env.example" ]; then
+    # Use repo's .env.example
+    log_info "Using repository's .env.example"
+    cp "/home/$PROJECT_SLUG/app/.env.example" "/home/$PROJECT_SLUG/.env"
+else
+    # Create empty .env with default container settings
+    log_info "Creating default .env file"
+    cat > "/home/$PROJECT_SLUG/.env" << 'ENV_EOF'
+# Container configuration
+CONTAINER_PORT=80
+CONTAINER_READONLY=true
+CONTAINER_CAPS=NET_BIND_SERVICE,CHOWN
+CONTAINER_VOLUMES=container-data:/data:Z
+CONTAINER_TMPFS=/tmp
+
+# Add your application environment variables below
+ENV_EOF
+fi
+
+# Set ownership and permissions
+chown "$PROJECT_SLUG:$PROJECT_SLUG" "/home/$PROJECT_SLUG/.env"
+chmod 600 "/home/$PROJECT_SLUG/.env"
 
 # Step 7: Build container image
 log_info "Building container image..."
@@ -118,6 +146,9 @@ Restart=always
 RestartSec=10s
 TimeoutStartSec=120s
 
+# Load environment file for container configuration
+EnvironmentFile=/home/$PROJECT_SLUG/.env
+
 # Resource limits
 MemoryMax=1G
 CPUQuota=100%
@@ -129,17 +160,17 @@ PrivateTmp=true
 # Run the container
 ExecStartPre=-/usr/bin/podman kill $PROJECT_SLUG-container
 ExecStartPre=-/usr/bin/podman rm $PROJECT_SLUG-container
-ExecStart=/usr/bin/podman run \\
+ExecStart=/bin/bash -c 'exec /usr/bin/podman run \\
   --name $PROJECT_SLUG-container \\
-  --publish 127.0.0.1:$PORT:80 \\
+  --publish 127.0.0.1:$PORT:\${CONTAINER_PORT:-80} \\
   --env-file /home/$PROJECT_SLUG/.env \\
-  --volume /home/$PROJECT_SLUG/container-data:/data:Z \\
+  --volume /home/$PROJECT_SLUG/\${CONTAINER_VOLUMES:-container-data:/data:Z} \\
   --security-opt no-new-privileges=true \\
   --cap-drop ALL \\
-  --cap-add NET_BIND_SERVICE \\
-  --cap-add CHOWN \\
-  --tmpfs /tmp \\
-  $PROJECT_SLUG-image
+  \${CONTAINER_CAPS:+\$(echo "\$CONTAINER_CAPS" | sed "s/,/ --cap-add /g" | sed "s/^/--cap-add /")} \\
+  \${CONTAINER_READONLY:+\$([ "\$CONTAINER_READONLY" = "true" ] && echo "--read-only")} \\
+  \${CONTAINER_TMPFS:+\$(echo "\$CONTAINER_TMPFS" | sed "s/,/ --tmpfs /g" | sed "s/^/--tmpfs /")} \\
+  $PROJECT_SLUG-image'
 
 ExecStop=/usr/bin/podman stop -t 10 $PROJECT_SLUG-container
 ExecStopPost=/usr/bin/podman rm -f $PROJECT_SLUG-container
