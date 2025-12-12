@@ -1,0 +1,5 @@
+# /etc/containers/systemd/shared-apps.network
+[Network]
+
+[Install]
+WantedBy=default.target

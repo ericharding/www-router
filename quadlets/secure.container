@@ -1,0 +1,26 @@
+[Container]
+Image=www-secure
+PublishPort=8080:80
+
+# Security hardening
+ReadOnly=true
+Tmpfs=/var/cache/nginx
+Tmpfs=/var/run
+
+# Drop all capabilities and add back only what's needed
+DropCapability=ALL
+AddCapability=NET_BIND_SERVICE
+AddCapability=CHOWN
+
+# Additional security
+NoNewPrivileges=true
+SecurityLabelDisable=false
+
+User=nginx
+
+[Service]
+Restart=always
+TimeoutStartSec=900
+
+[Install]
+WantedBy=multi-user.target
