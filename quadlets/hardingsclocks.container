@@ -1,5 +1,5 @@
 [Container]
-Image=www-secure
+Image=www-hardingsclocks
 PublishPort=8080:80
 
 # Security hardening

@@ -1,0 +1,38 @@
+# Caddyfile for secure.digitalsorcery.net
+# Automatically redirects HTTP to HTTPS and proxies to the secure container
+
+secure.digitalsorcery.net {
+    # Automatic HTTPS (redirects HTTP to HTTPS)
+    # Caddy automatically handles TLS certificates via Let's Encrypt
+
+    # Reverse proxy to the secure container
+    reverse_proxy http://www-secure:8080 {
+        # Use the shared-apps network to communicate with the container
+        # The container name 'www-secure' should resolve via the shared network
+    }
+
+    # Security headers
+    header {
+        # Enable HSTS (HTTP Strict Transport Security)
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+
+        # Other security headers
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "SAMEORIGIN"
+        X-XSS-Protection "1; mode=block"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'self'; form-action 'self'"
+    }
+
+    # Enable modern compression algorithms
+    encode zstd gzip
+
+    # Logging
+    log {
+        output file /var/log/caddy/secure.digitalsorcery.net.log {
+            roll_size 100MB
+            roll_keep 5
+            roll_keep_for 720h
+        }
+    }
+}
