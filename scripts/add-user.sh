@@ -2,6 +2,13 @@
 
 set -e
 
+# Check if running as root
+if [ "$EUID" -ne 0 ]; then
+    echo "Error: This script must be run as root"
+    echo "Please run with: sudo $0"
+    exit 1
+fi
+
 # Default values
 ENABLE_LINGER=false
 CREATE_ENV=false
