@@ -1,0 +1,15 @@
+# ~/.config/containers/systemd/foo.container
+[Unit]
+Description=My Web Application
+After=network-online.target
+Wants=network-online.target
+
+[Container]
+Image=localhost/foo:latest
+PublishPort=10000:80
+
+[Service]
+Restart=always
+
+[Install]
+WantedBy=default.target
