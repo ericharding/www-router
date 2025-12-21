@@ -47,14 +47,14 @@ function loadConfig(configPath) {
 function getUsers(config) {
   const users = [];
 
-  // Handle single user object (current schema)
-  if (config.user) {
-    users.push(config.user);
-  }
-
-  // Handle users array
-  if (config.users && Array.isArray(config.users)) {
-    users.push(...config.users);
+  // Handle users map (object keyed by username)
+  if (config.users && typeof config.users === 'object' && !Array.isArray(config.users)) {
+    for (const [username, userData] of Object.entries(config.users)) {
+      users.push({
+        name: username,
+        ...userData
+      });
+    }
   }
 
   return users;
