@@ -18,6 +18,7 @@ read -p "hit enter to continue"
 
 sudo useradd -u $PODUSERID -m -s /sbin/nologin $PODUSERNAME &&
   sudo loginctl enable-linger $PODUSERNAME &&
+  echo 'export XDG_RUNTIME_DIR=/run/user/$(id -u)' | sudo tee -a /home/$PODUSERNAME/.bashrc > /dev/null &&
   echo $PODUSERNAME $PODUSERID >> users.txt &&
   tail -n 1 users.txt
 
