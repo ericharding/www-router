@@ -16,9 +16,11 @@ PODUSERID=$(($ID + 10000))
 echo $PODUSERNAME $PODUSERID
 read -p "hit enter to continue"
 
-sudo useradd -u $PODUSERID -m $PODUSERNAME && 
+sudo useradd -u $PODUSERID -m -s /sbin/nologin $PODUSERNAME &&
   sudo loginctl enable-linger $PODUSERNAME &&
   echo $PODUSERNAME $PODUSERID >> users.txt &&
   tail -n 1 users.txt
+
+# To enable login shell for a user: sudo usermod -s /bin/bash $PODUSERNAME
 
 
