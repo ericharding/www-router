@@ -2,25 +2,18 @@
 
 set -e
 
+# Check that we're not running as root
+if [ "$EUID" -eq 0 ]; then
+    echo "Error: This script should not be run as root"
+    exit 1
+fi
+
 SLUG=$1
 VERSION=$2
 PODUSER=$3
 
 # Check if required arguments are provided
-if [ -z "$SLUG" ]; then
-    echo "Error: SLUG argument is required"
-    echo "Usage: $0 <slug> <version>"
-    exit 1
-fi
-
-if [ -z "$VERSION" ]; then
-    echo "Error: VERSION argument is required"
-    echo "Usage: $0 <slug> <version>"
-    exit 1
-fi
-
-if [ -z "$PODUSER" ]; then
-    echo "Error: PODUSER argument is required"
+if [ -z "$SLUG" ] || [ -z "$VERSION" ] || [ -z "$PODUSER" ]; then
     echo "Usage: $0 <slug> <version> <user>"
     exit 1
 fi
