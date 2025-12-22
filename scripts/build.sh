@@ -21,7 +21,9 @@ fi
 podman build -t $SLUG:$VERSION .
 
 cd /tmp # sudo preserves the current dirctory so use /tmp to avoid error
-sudo podman image scp $USER@localhost:$SLUG:$VERSION $PODUSER@localhost::$SLUG:$VERSION
+echo sudo podman image scp $USER@localhost:$SLUG:$VERSION $PODUSER@localhost::$SLUG:$VERSION
+sudo podman image scp $USER@localhost::$SLUG:$VERSION $PODUSER@localhost::$SLUG:$VERSION
+echo sudo -u $PODUSER podman tag $SLUG:$VERSION $SLUG:latest
 sudo -u $PODUSER podman tag $SLUG:$VERSION $SLUG:latest
 
 
