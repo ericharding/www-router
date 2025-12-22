@@ -1,2 +1,4 @@
 www-secure 10000
 www-hardingsclocks 10001
+www-blog 10002
+www-hardingtech 10003
