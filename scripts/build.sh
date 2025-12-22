@@ -26,4 +26,8 @@ sudo podman image scp $USER@localhost::$SLUG:$VERSION $PODUSER@localhost::$SLUG:
 echo sudo -u $PODUSER podman tag $SLUG:$VERSION $SLUG:latest
 sudo -u $PODUSER podman tag $SLUG:$VERSION $SLUG:latest
 
-
+# Install systemd container unit for the target user
+SCRIPT_DIR=$(dirname "$(realpath "$0")")
+PODUSER_HOME=$(getent passwd "$PODUSER" | cut -d: -f6)
+sudo -u $PODUSER mkdir -p "$PODUSER_HOME/.config/containers/systemd"
+cat "$SCRIPT_DIR/example.container" | sed "s/foo/$SLUG/g; s/10000/$(id -u $PODUSER)/g" | sudo -u $PODUSER tee "$PODUSER_HOME/.config/containers/systemd/${SLUG}.container" > /dev/null
