@@ -20,14 +20,14 @@ fi
 
 podman build -t $SLUG:$VERSION .
 
-cd /tmp # sudo preserves the current dirctory so use /tmp to avoid error
+#cd /tmp # sudo preserves the current dirctory so use /tmp to avoid error
 echo sudo podman image scp $USER@localhost:$SLUG:$VERSION $PODUSER@localhost::$SLUG:$VERSION
-sudo podman image scp $USER@localhost::$SLUG:$VERSION $PODUSER@localhost::$SLUG:$VERSION
+(cd /tmp; sudo podman image scp $USER@localhost::$SLUG:$VERSION $PODUSER@localhost::$SLUG:$VERSION)
 echo sudo -u $PODUSER podman tag $SLUG:$VERSION $SLUG:latest
-sudo -u $PODUSER podman tag $SLUG:$VERSION $SLUG:latest
+(cd /tmp; sudo -u $PODUSER podman tag $SLUG:$VERSION $SLUG:latest)
 
 # Install systemd container unit for the target user
-SCRIPT_DIR=$(dirname "$(realpath "$0")")
+SCRIPT_DIR=$(dirname "$(realpath "$BASH_SOURCE")")
 PODUSER_HOME=$(getent passwd "$PODUSER" | cut -d: -f6)
 sudo -u $PODUSER mkdir -p "$PODUSER_HOME/.config/containers/systemd"
-cat "$SCRIPT_DIR/example.container" | sed "s/foo/$SLUG/g; s/10000/$(id -u $PODUSER)/g" | sudo -u $PODUSER tee "$PODUSER_HOME/.config/containers/systemd/${SLUG}.container" > /dev/null
+cat "$SCRIPT_DIR/example.container" | sed "s/foo/$SLUG/g; s/10000/$(id -u $PODUSER)/g" | sudo -u $PODUSER tee "$PODUSER_HOME/.config/containers/systemd/${SLUG}.container"
