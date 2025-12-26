@@ -20,11 +20,19 @@ fi
 
 podman build -t $SLUG:$VERSION .
 
-#cd /tmp # sudo preserves the current dirctory so use /tmp to avoid error
-echo sudo podman image scp $USER@localhost:$SLUG:$VERSION $PODUSER@localhost::$SLUG:$VERSION
-(cd /tmp; sudo podman image scp $USER@localhost::$SLUG:$VERSION $PODUSER@localhost::$SLUG:$VERSION)
-echo sudo -u $PODUSER podman tag $SLUG:$VERSION $SLUG:latest
-(cd /tmp; sudo -u $PODUSER podman tag $SLUG:$VERSION $SLUG:latest)
+# Check if we're on cerberus
+if [ "$(hostname)" = "cerberus" ]; then
+    echo podman image scp $SLUG:$VERSION eric@locl.sh::$SLUG:$VERSION
+    podman image scp $SLUG:$VERSION eric@locl.sh::$SLUG:$VERSION
+    echo ssh eric@locl.sh podman tag $SLUG:$VERSION $SLUG:latest
+    ssh eric@locl.sh podman tag $SLUG:$VERSION $SLUG:latest
+else
+    #cd /tmp # sudo preserves the current dirctory so use /tmp to avoid error
+    echo sudo podman image scp $USER@localhost:$SLUG:$VERSION $PODUSER@localhost::$SLUG:$VERSION
+    (cd /tmp; sudo podman image scp $USER@localhost::$SLUG:$VERSION $PODUSER@localhost::$SLUG:$VERSION)
+    echo sudo -u $PODUSER podman tag $SLUG:$VERSION $SLUG:latest
+    (cd /tmp; sudo -u $PODUSER podman tag $SLUG:$VERSION $SLUG:latest)
+fi
 
 # Install systemd container unit for the target user
 SCRIPT_DIR=$(dirname "$(realpath "$BASH_SOURCE")")
